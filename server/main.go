@@ -120,7 +120,7 @@ func (s *server) Quit(ctx context.Context, player *mafia_grpc.PlayerInfo) (*mafi
 		return nil, errors.New("No game session: " + session)
 	}
 
-	err := game.Quit(name)
+	err := game.DeletePlayer(name)
 	return &mafia_grpc.Response{Ok: err == nil}, nil
 }
 
@@ -141,7 +141,11 @@ func (s *server) GetNotifications(player *mafia_grpc.PlayerInfo, stream mafia_gr
 
 	for notification := range *notifications {
 		log.Printf("Sending to %s notification %s", name, notification.Type)
-		stream.Send(notification)
+		err := stream.Send(notification)
+		if err != nil {
+			log.Printf("Player %s: Notifications connection lost\n", name)
+			game.DeletePlayer(name)
+		}
 	}
 
 	return nil

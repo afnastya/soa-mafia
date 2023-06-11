@@ -8,12 +8,14 @@ services:
     expose:
       - "9000"
 
-  mafia_client:
+  client:
     build:
       context: .
       dockerfile: ./client/Dockerfile
+    stdin_open: true
     environment:
       MAFIA_HOST: "mafia_server"
+      RABBITMQ_HOST: "rabbitmq"
 
   # rabbitmq:
   #   image: rabbitmq:3-management

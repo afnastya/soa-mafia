@@ -203,7 +203,7 @@ func (g *Game) CanChat(player string) (bool, error) {
 	return canChat, nil
 }
 
-func (g *Game) Quit(player string) error {
+func (g *Game) DeletePlayer(player string) error {
 	info, exists := g.names2players[player]
 	if !exists {
 		return errors.New("Player doesn't exist")
@@ -213,7 +213,12 @@ func (g *Game) Quit(player string) error {
 		g.kill(player)
 	}
 
-	close(*info.notifications)
+	info = g.names2players[player]
+	if info.notifications != nil {
+		close(*info.notifications)
+		info.notifications = nil
+		g.names2players[player] = info
+	}
 
 	g.checkIfFinished()
 	return nil
@@ -313,7 +318,7 @@ func (g *Game) canVote(player string) bool {
 
 func (g *Game) canKill(mafia string) bool {
 	info, exists := g.names2players[mafia]
-	return exists && info.isAlive && info.role == Mafia
+	return exists && info.isAlive && info.role == Mafia && g.mafiaChoice == ""
 }
 
 func (g *Game) canBeKilled(victim string) bool {
@@ -418,14 +423,18 @@ func (g *Game) determineDailyVictim() string {
 func (g *Game) notifyStart() {
 	for _, info := range g.names2players {
 		notification := g.getNotification(mafia_grpc.NotificationType_START, (*string)(&info.role))
-		*info.notifications <- notification
+		if info.notifications != nil {
+			*info.notifications <- notification
+		}
 	}
 }
 
 func (g *Game) notifyAll(notification *mafia_grpc.Notification) {
 	for _, info := range g.names2players {
 		log.Println("Notification: ", notification.Type)
-		*info.notifications <- notification
+		if info.notifications != nil {
+			*info.notifications <- notification
+		}
 	}
 }
 
