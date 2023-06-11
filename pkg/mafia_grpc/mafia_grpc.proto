@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package mafia_grpc;
+option go_package = "soa_mafia/pkg/mafia_grpc";
+
+service Mafia {
+    rpc Join(JoinRequest) returns (Response) {}
+    rpc Vote(SetVictimRequest) returns (Response) {}
+    rpc Kill(SetVictimRequest) returns (Response) {}
+    rpc CheckIfMafia(SetVictimRequest) returns (CheckMafiaResponse) {}
+    rpc GetState(PlayerInfo) returns (GameState) {}
+    rpc CanChat(PlayerInfo) returns (ChatResponse) {}
+    rpc Quit(PlayerInfo) returns (Response) {}
+    rpc GetNotifications(PlayerInfo) returns (stream Notification) {}
+}
+
+message Response {
+    bool ok = 1;
+}
+
+message CheckMafiaResponse {
+    bool isMafia = 1;
+}
+
+message ChatResponse {
+    bool canChat = 1;
+}
+
+message PlayerInfo {
+    string session = 1;
+    string name = 2;
+}
+
+message JoinRequest {
+    PlayerInfo player = 1;
+}
+
+message SetVictimRequest {
+    PlayerInfo player = 1;
+    string victim = 2;
+}
+
+
+message GameState {
+  string session = 1;
+  repeated string alivePlayers = 2;
+  int32 date = 3;
+  bool isDay = 4;
+  bool isStarted = 5;
+  bool isFinished = 6;
+}
+
+enum NotificationType {
+  START = 0;
+  FINISH = 1;
+  NEW_DAY = 2;
+  NEW_NIGHT = 3;
+}
+
+message Notification {
+  NotificationType type = 1;
+  GameState gameState = 2;
+  oneof details {
+    string role = 3;
+    string killedPlayer = 4;
+    string mafia = 5;
+  }
+}

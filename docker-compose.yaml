@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  mafia_server:
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    expose:
+      - "9000"
+
+  mafia_client:
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    environment:
+      MAFIA_HOST: "mafia_server"
+
+  # rabbitmq:
+  #   image: rabbitmq:3-management
+  #   hostname: "rabbitmq"
+  #   ports:
+  #     - "15672:15672"
+  #     - "5672:5672"
