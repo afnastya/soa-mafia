@@ -1,12 +1,9 @@
 package messenger
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"strings"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -52,6 +49,11 @@ func (m *Messenger) Send(msg string) {
 
 func (m *Messenger) Receive() chan string {
 	return m.receivedMsg
+}
+
+func (m *Messenger) Close() {
+	close(m.sentMsg)
+	close(m.receivedMsg)
 }
 
 func (m *Messenger) publish() {
@@ -100,13 +102,21 @@ func (m *Messenger) consume() {
 
 	for msg := range msgs {
 		m.receivedMsg <- string(msg.Body)
-		// log.Printf("Received a message: %s", msg.Body)
+		log.Printf("Received a message: %s", msg.Body)
 	}
 }
 
 func (m *Messenger) connect() (*amqp.Connection, *amqp.Channel) {
+	_, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+	defer cancel()
+
 	conn, err := amqp.Dial(m.rabbitmq_url)
-	failOnError(err, "Failed to connect to RabbitMQ")
+	for err != nil {
+		conn, err = amqp.Dial(m.rabbitmq_url)
+		time.Sleep(5 * time.Second)
+	}
+	log.Println("Connected to rabbitmq")
+	// failOnError(err, "Failed to connect to RabbitMQ")
 
 	ch, err := conn.Channel()
 	if err != nil {
@@ -155,29 +165,29 @@ func makeQueue(rabbitmq_channel *amqp.Channel, exchange string) *amqp.Queue {
 	return &queue
 }
 
-func main() {
-	rabbitmq_url := "amqp://guest:guest@localhost:5672/%2f"
-	var chatName string
-	fmt.Scanf("%s", &chatName)
+// func main() {
+// 	rabbitmq_url := "amqp://guest:guest@localhost:5672/%2f"
+// 	var chatName string
+// 	fmt.Scanf("%s", &chatName)
 
-	messenger := NewMessenger(rabbitmq_url, chatName)
+// 	messenger := NewMessenger(rabbitmq_url, chatName)
 
-	log.Println("Ready to get messages!")
-	go func() {
-		for msg := range messenger.Receive() {
-			fmt.Println(msg)
-		}
-	}()
+// 	log.Println("Ready to get messages!")
+// 	go func() {
+// 		for msg := range messenger.Receive() {
+// 			fmt.Println(msg)
+// 		}
+// 	}()
 
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("Error reading input:", err)
-			continue
-		}
+// 	reader := bufio.NewReader(os.Stdin)
+// 	for {
+// 		input, err := reader.ReadString('\n')
+// 		if err != nil {
+// 			fmt.Println("Error reading input:", err)
+// 			continue
+// 		}
 
-		input = strings.TrimSpace(input)
-		messenger.Send(input)
-	}
-}
+// 		input = strings.TrimSpace(input)
+// 		messenger.Send(input)
+// 	}
+// }

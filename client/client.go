@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+
+	// "log"
 	"os"
 	"regexp"
+	messenger "soa_mafia/messenger"
 	"strings"
 	"time"
 
@@ -19,6 +21,7 @@ type MafiaClient struct {
 
 	name       *string
 	playerInfo *mafia_grpc.PlayerInfo
+	messenger  *messenger.MafiaMessenger
 
 	stdout *ThreadSafeStdout
 }
@@ -26,6 +29,7 @@ type MafiaClient struct {
 func NewMafiaClient(grpc_client mafia_grpc.MafiaClient) *MafiaClient {
 	return &MafiaClient{
 		&grpc_client,
+		nil,
 		nil,
 		nil,
 		NewThreadSafeStdout(),
@@ -102,6 +106,8 @@ func (m *MafiaClient) RunConsoleClient() {
 			m.check(arg)
 		case "state":
 			m.state()
+		case "msg":
+			m.sendMsg(arg)
 		case "quit":
 			m.quit()
 		case "exit":
@@ -117,13 +123,16 @@ func (m *MafiaClient) RunConsoleClient() {
 func (m *MafiaClient) help() {
 	var sb strings.Builder
 
-	sb.WriteString("Available commands:\n")
+	sb.WriteString("========================== Available commands ========================\n")
 	sb.WriteString("help\n")
-	sb.WriteString("vote {player_name} \t\t\t vote for a player during the day\n")
-	sb.WriteString("kill {player_name} \t\t\t kill a player. This command can be executed only by mafia\n")
 	sb.WriteString("join {session_name} \t\t\t join the game\n")
+	sb.WriteString("vote {player_name} \t\t\t vote for a player during the day\n")
+	sb.WriteString("kill {player_name} \t\t\t kill a player. (command only for mafia)\n")
+	sb.WriteString("check {player_name} \t\t\t check if player is mafia. (command only for detective)\n")
 	sb.WriteString("state \t\t\t\t\t get current game state\n")
-	sb.WriteString("quit \t\t\t\t\t exit the program\n")
+	sb.WriteString("msg {text} \t\t\t\t send text to chat\n")
+	sb.WriteString("quit \t\t\t\t\t quit the game session\n")
+	sb.WriteString("exit \t\t\t\t\t exit the program\n")
 
 	m.stdout.Println(sb.String())
 }
@@ -184,6 +193,17 @@ func (m *MafiaClient) state() {
 	m.stdout.Println(stateToString(state))
 }
 
+func (m *MafiaClient) sendMsg(msg string) {
+	if m.printErrorIfNotPlaying() || m.messenger == nil {
+		return
+	}
+
+	err := m.messenger.Send(msg)
+	if err != nil {
+		m.stdout.Println("Error while sending a message: " + err.Error())
+	}
+}
+
 func containsString(slice []string, str string) bool {
 	for _, value := range slice {
 		if value == str {
@@ -221,10 +241,17 @@ func notificationToString(notification *mafia_grpc.Notification) string {
 
 func (m *MafiaClient) processNotifications(notifications chan *mafia_grpc.Notification) {
 	for notification := range notifications {
-		log.Println(notificationToString(notification))
+		// log.Println(notificationToString(notification))
 		m.stdout.Println(notificationToString(notification))
 	}
-	log.Println("processNotifications ended")
+	// log.Println("processNotifications ended")
+}
+
+func (m *MafiaClient) processMessages() {
+	for msg := range m.messenger.Receive() {
+		m.stdout.Println(msg)
+	}
+	// log.Println("processMessages ended")
 }
 
 func (m *MafiaClient) newGame(session string) {
@@ -247,7 +274,8 @@ func (m *MafiaClient) newGame(session string) {
 	}
 
 	go m.processNotifications(notifications)
-	// go messenger
+	m.messenger = messenger.NewMafiaMessenger(m.grpc, m.playerInfo)
+	go m.processMessages()
 }
 
 func (m *MafiaClient) quit() {
@@ -260,6 +288,8 @@ func (m *MafiaClient) quit() {
 		m.stdout.Println("Error while quiting the game: " + err.Error())
 	}
 
+	m.messenger.Close()
+	m.messenger = nil
 	m.playerInfo = nil
 }
 
@@ -378,13 +408,13 @@ func (m *MafiaClient) getNotificationsGrpc() (chan *mafia_grpc.Notification, err
 		for {
 			notification, err := notification_stream.Recv()
 			if err != nil {
-				log.Println(err)
+				// log.Println(err)
 				break
 			}
-			log.Println(notificationToString(notification))
+			// log.Println(notificationToString(notification))
 			notifications <- notification
 		}
-		log.Println("Notification stream closed")
+		// log.Println("Notification stream closed")
 	}()
 
 	return notifications, err

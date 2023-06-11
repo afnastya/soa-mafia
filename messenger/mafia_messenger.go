@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"soa_mafia/pkg/mafia_grpc"
 	"time"
 )
@@ -22,7 +23,12 @@ type MafiaMessenger struct {
 }
 
 func NewMafiaMessenger(grpc *mafia_grpc.MafiaClient, player *mafia_grpc.PlayerInfo) *MafiaMessenger {
-	rabbitmqUrl := RabbitmqUrlPrefix + RabbitmqHost + ":" + RabbitmqPort + "/%2f"
+	rabbitHost := os.Getenv("RABBITMQ_HOST")
+	if len(rabbitHost) == 0 {
+		rabbitHost = RabbitmqHost
+	}
+
+	rabbitmqUrl := fmt.Sprintf("%s%s:%s", RabbitmqUrlPrefix, rabbitHost, RabbitmqPort)
 
 	return &MafiaMessenger{
 		NewMessenger(rabbitmqUrl, player.GetSession()),
@@ -44,10 +50,16 @@ func (m *MafiaMessenger) Send(msg string) error {
 		return errors.New("Can't chat right now")
 	}
 
+	msg = fmt.Sprintf("[ %s ] %s", m.player.Name, msg)
+
 	m.messenger.Send(msg)
 	return nil
 }
 
 func (m *MafiaMessenger) Receive() chan string {
 	return m.messenger.Receive()
+}
+
+func (m *MafiaMessenger) Close() {
+	m.messenger.Close()
 }
